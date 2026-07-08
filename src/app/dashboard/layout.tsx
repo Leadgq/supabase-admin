@@ -66,22 +66,36 @@ export default function DashboardLayout({
   const supabase = createClient();
   const [state, updateState] = useImmer<{
     user: User | null;
+    role: string | null;
     sidebarOpen: boolean;
   }>({
     user: null,
+    role: null,
     sidebarOpen: false,
   });
 
   useEffect(() => {
-    const getUser = async () => {
+    const getSession = async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
       updateState((draft) => {
         draft.user = user;
       });
+
+      // 获取角色
+      if (user) {
+        const { data } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user.id)
+          .single();
+        updateState((draft) => {
+          draft.role = data?.role ?? "user";
+        });
+      }
     };
-    getUser();
+    getSession();
   }, [supabase, updateState]);
 
   const handleLogout = async () => {
@@ -184,11 +198,20 @@ export default function DashboardLayout({
                     <p className="text-sm font-medium text-gray-900 dark:text-white">
                       {state.user.email}
                     </p>
-                    <p className="text-xs text-gray-500">
-                      {state.user.user_metadata?.full_name ?? "管理员"}
-                    </p>
+                    <div className="flex items-center justify-end gap-1.5">
+                      {state.role === "admin" && (
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                          管理员
+                        </span>
+                      )}
+                      <span className="text-xs text-gray-500">
+                        {state.user.user_metadata?.full_name ?? "用户"}
+                      </span>
+                    </div>
                   </div>
-                  <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-medium">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium ${
+                    state.role === "admin" ? "bg-amber-500" : "bg-blue-600"
+                  }`}>
                     {(state.user.email?.[0] ?? "U").toUpperCase()}
                   </div>
                 </div>
