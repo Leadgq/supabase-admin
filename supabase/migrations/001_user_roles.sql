@@ -1,52 +1,61 @@
--- =============================================
--- 管理员权限系统
+-- ==========================================
+-- 用户角色系统 v2
 -- 在 Supabase Dashboard → SQL Editor 中执行
--- =============================================
+-- ==========================================
 
--- 1. 创建用户角色表
-CREATE TABLE IF NOT EXISTS public.user_roles (
-  user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  role    TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin')),
+-- 1. 建表
+CREATE TABLE public.user_roles (
+  user_id   UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  role      TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- 2. 开启 RLS（行级安全）
+-- 2. 开启 RLS
 ALTER TABLE public.user_roles ENABLE ROW LEVEL SECURITY;
 
--- 3. 每个人都能读自己的角色
-CREATE POLICY "允许用户读取自己的角色"
-  ON public.user_roles FOR SELECT
-  USING (auth.uid() = user_id);
+-- 3. 安全函数，查角色时绕过 RLS
+CREATE OR REPLACE FUNCTION public.current_role()
+RETURNS TEXT
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  _role TEXT;
+BEGIN
+  SELECT role INTO _role
+  FROM public.user_roles
+  WHERE user_id = auth.uid();
+  RETURN COALESCE(_role, 'user');
+END;
+$$;
 
--- 4. 管理员能读所有人的角色
-CREATE POLICY "允许管理员读取所有角色"
+-- 4. 一条策略：自己的记录 OR 管理员
+CREATE POLICY "user_roles_select"
   ON public.user_roles FOR SELECT
   USING (
-    EXISTS (
-      SELECT 1 FROM public.user_roles
-      WHERE user_id = auth.uid() AND role = 'admin'
-    )
+    auth.uid() = user_id
+    OR public.current_role() = 'admin'
   );
 
--- 5. 新用户注册时自动创建 role = 'user'
+-- 5. 新用户自动创建角色
 CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
 BEGIN
-  INSERT INTO public.user_roles (user_id, role)
-  VALUES (NEW.id, 'user');
+  INSERT INTO public.user_roles (user_id, role) VALUES (NEW.id, 'user');
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
--- 6. 绑定到 auth.users 表
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
--- 7. 把你的邮箱设为管理员
+-- 6. 设你的邮箱为管理员
 INSERT INTO public.user_roles (user_id, role)
-SELECT id, 'admin'
-FROM auth.users
-WHERE email = '2643336540@qq.com';
+SELECT id, 'admin' FROM auth.users WHERE email = '2643336540@qq.com';
