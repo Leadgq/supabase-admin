@@ -9,7 +9,7 @@ export default async function UsersPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">用户管理</h2>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">用户管理222</h2>
         <p className="mt-1 text-sm text-gray-500">管理所有注册用户</p>
       </div>
       <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-12 flex flex-col items-center justify-center text-center">
