@@ -25,18 +25,27 @@ export default function SettingsPage() {
       draft.loading = true;
     });
 
-    const { error } = await supabase.auth.resetPasswordForEmail(
-      window.location.origin + "/auth/callback",
-      {
-        redirectTo: `${window.location.origin}/auth/callback?next=/dashboard/settings`,
-      }
-    );
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user?.email) {
+      updateUi((draft) => {
+        draft.error = "无法获取当前用户邮箱";
+        draft.loading = false;
+      });
+      return;
+    }
+
+    const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
+      redirectTo: `${window.location.origin}/auth/callback?reset=true`,
+    });
 
     updateUi((draft) => {
       if (error) {
         draft.error = error.message;
       } else {
-        draft.message = "密码重置链接已发送到您的邮箱";
+        draft.message = `密码重置链接已发送到 ${user.email}`;
       }
       draft.loading = false;
     });
