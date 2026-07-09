@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useImmer } from "use-immer";
 import { createClient } from "@/lib/supabase/client";
@@ -13,7 +14,19 @@ export default function UpdatePasswordPage() {
     loading: false,
     error: null as string | null,
     done: false,
+    ready: false,
   });
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      update((d) => {
+        d.ready = true;
+        if (!user) {
+          d.error = "链接已失效或未登录，请重新申请重置密码";
+        }
+      });
+    });
+  }, [supabase, update]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,7 +77,11 @@ export default function UpdatePasswordPage() {
             </div>
           )}
 
-          {state.done ? (
+          {!state.ready ? (
+            <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+              验证中...
+            </p>
+          ) : state.done ? (
             <div className="flex justify-center">
               <svg
                 className="w-16 h-16 text-green-500"
@@ -79,6 +96,16 @@ export default function UpdatePasswordPage() {
                   d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
                 />
               </svg>
+            </div>
+          ) : state.error && !state.password ? (
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={() => router.push("/login")}
+                className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                返回登录
+              </button>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
