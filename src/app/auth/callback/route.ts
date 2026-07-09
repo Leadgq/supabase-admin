@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
   const isReset = searchParams.get("reset") === "true";
   const next = searchParams.get("next") ?? "/dashboard";
@@ -11,20 +11,24 @@ export async function GET(request: Request) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
-      // 密码重置回调 → 跳转到改密码页
       const target = isReset ? "/auth/update-password" : next;
 
+      // 获取真实域名：优先用请求头，其次用环境变量
       const forwardedHost = request.headers.get("x-forwarded-host");
-      const isLocalEnv = process.env.NODE_ENV === "development";
-      if (isLocalEnv) {
-        return NextResponse.redirect(`${origin}${target}`);
-      } else if (forwardedHost) {
-        return NextResponse.redirect(`https://${forwardedHost}${target}`);
-      } else {
-        return NextResponse.redirect(`${origin}${target}`);
-      }
+      const forwardedProto = request.headers.get("x-forwarded-proto") ?? "https";
+      const base =
+        forwardedHost
+          ? `${forwardedProto}://${forwardedHost}`
+          : process.env.NEXT_PUBLIC_SITE_URL ??
+            new URL(request.url).origin;
+
+      return NextResponse.redirect(`${base}${target}`);
     }
   }
 
-  return NextResponse.redirect(`${origin}/login?error=auth_callback_error`);
+  // 回调失败
+  const fallbackBase =
+    process.env.NEXT_PUBLIC_SITE_URL ??
+    new URL(request.url).origin;
+  return NextResponse.redirect(`${fallbackBase}/login?error=auth_callback_error`);
 }
