@@ -11,6 +11,7 @@ type FormState = {
 
 type UiState = {
   isSignUp: boolean;
+  forgotPassword: boolean;
   loading: boolean;
   error: string | null;
   message: string | null;
@@ -27,10 +28,35 @@ export default function LoginPage() {
 
   const [ui, updateUi] = useImmer<UiState>({
     isSignUp: false,
+    forgotPassword: false,
     loading: false,
     error: null,
     message: null,
   });
+
+  // ── 忘记密码 ──
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    updateUi((draft) => {
+      draft.error = null;
+      draft.message = null;
+      draft.loading = true;
+    });
+
+    const { error } = await supabase.auth.resetPasswordForEmail(
+      form.email,
+      { redirectTo: `${window.location.origin}/auth/callback?reset=true` }
+    );
+
+    updateUi((draft) => {
+      if (error) {
+        draft.error = error.message;
+      } else {
+        draft.message = `重置链接已发送到 ${form.email}，请查看邮箱`;
+      }
+      draft.loading = false;
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -126,7 +152,11 @@ export default function LoginPage() {
               Admin Demo
             </h1>
             <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-              {ui.isSignUp ? "创建新账户" : "登录到后台管理系统"}
+              {ui.forgotPassword
+                ? "输入邮箱，我们将发送重置链接"
+                : ui.isSignUp
+                ? "创建新账户"
+                : "登录到后台管理系统"}
             </p>
           </div>
 
@@ -194,76 +224,147 @@ export default function LoginPage() {
           </div>
 
           {/* 邮箱密码表单 */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label
-                htmlFor="email"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+          {ui.forgotPassword ? (
+            /* ─── 忘记密码表单 ─── */
+            <form onSubmit={handleForgotPassword} className="space-y-4">
+              <div>
+                <label
+                  htmlFor="email"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                >
+                  邮箱
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  value={form.email}
+                  onChange={(e) =>
+                    updateForm((draft) => {
+                      draft.email = e.target.value;
+                    })
+                  }
+                  placeholder="请输入注册邮箱"
+                  required
+                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={ui.loading}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-lg transition disabled:opacity-50"
               >
-                邮箱
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={form.email}
-                onChange={(e) =>
-                  updateForm((draft) => {
-                    draft.email = e.target.value;
-                  })
-                }
-                placeholder="you@example.com"
-                required
-                className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                {ui.loading ? "发送中..." : "发送重置链接"}
+              </button>
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateUi((draft) => {
+                      draft.forgotPassword = false;
+                      draft.error = null;
+                      draft.message = null;
+                    })
+                  }
+                  className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  返回登录
+                </button>
+              </div>
+            </form>
+          ) : (
+            /* ─── 登录 / 注册表单 ─── */
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label
+                  htmlFor="email"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                >
+                  邮箱
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  value={form.email}
+                  onChange={(e) =>
+                    updateForm((draft) => {
+                      draft.email = e.target.value;
+                    })
+                  }
+                  placeholder="you@example.com"
+                  required
+                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="password"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                >
+                  密码
+                </label>
+                <input
+                  id="password"
+                  type="password"
+                  value={form.password}
+                  onChange={(e) =>
+                    updateForm((draft) => {
+                      draft.password = e.target.value;
+                    })
+                  }
+                  placeholder="至少 6 位"
+                  minLength={6}
+                  required
+                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={ui.loading}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-lg transition disabled:opacity-50"
               >
-                密码
-              </label>
-              <input
-                id="password"
-                type="password"
-                value={form.password}
-                onChange={(e) =>
-                  updateForm((draft) => {
-                    draft.password = e.target.value;
-                  })
-                }
-                placeholder="至少 6 位"
-                minLength={6}
-                required
-                className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={ui.loading}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-lg transition disabled:opacity-50"
-            >
-              {ui.loading ? "处理中..." : ui.isSignUp ? "注册" : "登录"}
-            </button>
-          </form>
+                {ui.loading ? "处理中..." : ui.isSignUp ? "注册" : "登录"}
+              </button>
+
+              {/* 忘记密码 */}
+              {!ui.isSignUp && (
+                <div className="text-right">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateUi((draft) => {
+                        draft.forgotPassword = true;
+                        draft.error = null;
+                        draft.message = null;
+                      })
+                    }
+                    className="text-sm text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition"
+                  >
+                    忘记密码？
+                  </button>
+                </div>
+              )}
+            </form>
+          )}
 
           {/* 切换登录 / 注册 */}
-          <div className="text-center text-sm">
-            <button
-              onClick={() => {
-                updateUi((draft) => {
-                  draft.isSignUp = !draft.isSignUp;
-                  draft.error = null;
-                  draft.message = null;
-                });
-              }}
-              className="text-blue-600 dark:text-blue-400 hover:underline"
-            >
-              {ui.isSignUp
-                ? "已有账户？点此登录"
-                : "没有账户？点此注册"}
-            </button>
-          </div>
+          {!ui.forgotPassword && (
+            <div className="text-center text-sm">
+              <button
+                onClick={() => {
+                  updateUi((draft) => {
+                    draft.isSignUp = !draft.isSignUp;
+                    draft.error = null;
+                    draft.message = null;
+                  });
+                }}
+                className="text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                {ui.isSignUp
+                  ? "已有账户？点此登录"
+                  : "没有账户？点此注册"}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
